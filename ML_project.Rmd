@@ -1,0 +1,86 @@
+---
+title: "Practical Machine Learning. Course Project"
+author: "Fedotov Yury"
+date: '17 февраля 2019 г '
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Loading necessary packages
+```{r}
+library(caret)
+# store current working directory and set directory containing data
+cwd <- getwd()
+```
+
+### Loading data files
+```{r}
+setwd("C:/User/Fed/R/coursera/ML_project")
+traindata <- read.csv("pml-training.csv", na.strings = c("NA", ""))
+checkdata <- read.csv("pml-testing.csv", na.strings = c("NA", ""))
+```
+
+### Preprocess data
+```{r}
+#remove columns  containing "NA" data
+fullCol<-(colSums(is.na(traindata))==0) & (colSums(is.na(checkdata))==0) | (colnames(traindata)=="classe")
+#remove a-priori not  relevant columns
+fullCol[1:7]<-rep(FALSE,7)
+traindata <- traindata[, fullCol]
+checkdata <- checkdata[, fullCol]
+```
+
+### Split data
+```{r}
+set.seed(1) 
+inTrain <- createDataPartition(traindata$classe, p = 3/4, list = FALSE)
+trainset <- traindata[inTrain, ]
+testset <- traindata[-inTrain, ]
+trainout <- trainset$classe
+trainset$classe<-NULL
+```
+### Preprocess data using PCA for less computation time of training process and higher model generalisation 
+```{r}
+res_pca<-prcomp(trainset, scale=TRUE, rank=10)
+train_pca<-predict(res_pca, trainset)
+test_pca<-predict(res_pca, testset)
+ceck_pca<-predict(res_pca, checkdata)
+train_pca<-data.frame(train_pca, classe=trainout)
+```
+### Train different models
+```{r}
+trCtrl<- trainControl(number = 5)
+LDA_Mod <- train(classe~., data=train_pca, method="lda")
+RF_Mod <- train(classe~., data=train_pca, method="rf")
+GBM_Mod <- train(classe~., data=train_pca, method="gbm", verbose = FALSE)
+```
+### Compare model performance
+```{r}
+LDA_Mod$results
+RF_Mod$results
+GBM_Mod$results
+
+LDA_res<-predict(LDA_Mod, test_pca)
+RF_res<-predict(RF_Mod, test_pca)
+GBM_res<-predict(GBM_Mod, test_pca)
+LDA_cf<-confusionMatrix(LDA_res, testset$classe)
+RF_cf<-confusionMatrix(RF_res, testset$classe)
+GBM_cf<-confusionMatrix(GBM_res, testset$classe)
+
+LDA_cf$overall[1]
+RF_cf$overall[1]
+GBM_cf$overall[1]
+```
+#` Random forest classifier has better overall acuracy
+#` Predict samples from testing.csv using Random Forest classifier model
+```{r}
+predict(RF_Mod, ceck_pca)
+```
+
+#restore working directory
+setwd(cwd)
+```
+
